@@ -7,12 +7,15 @@ I built this project to bridge the gap between classical orbital mechanics and D
 * **Triangle Handshake:** It picks 3 detected stars, calculates their relative geometry, and matches them against a local catalog to identify which stars they actually are.
 * **Attitude Determination:** Once identified, it solves the **Wahba problem** to calculate the final rotation matrix and outputs the pointing accuracy in degrees.
 
-## Optimization
-
 ## How to Run
 1. Make sure you have `torch`, `numpy`, `scipy`, and `ipywidgets` installed.
 2. Open `star_tracker.ipynb`. Make sure that the .pth is in the same folder of the ipynb.
 4. Use the **Orbit Step** slider to move the satellite along its path and the **FOV** slider to change the lens zoom.
 5. The AI will update the centroid detections and attitude error instantly.
 
+## Future Ideas
+
+1. Use an already built CNN
+2. Train a better CNN
+3. Implement attitude disturbances to S/C orientation
 
