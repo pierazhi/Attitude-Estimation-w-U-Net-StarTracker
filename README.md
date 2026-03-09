@@ -9,17 +9,11 @@ I built this project to bridge the gap between classical orbital mechanics and D
 * **Triangle Handshake:** It picks 3 detected stars, calculates their relative geometry, and matches them against a local catalog to identify which stars they actually are.
 * **Attitude Determination:** Once identified, it solves the **Wahba problem** to calculate the final rotation matrix and outputs the pointing accuracy in degrees.
 
-
-
 ## Optimization (Killing the Lag)
-The biggest pain in the ass during development was the UI lag. Originally, the code was saving `.png` files to disk and reading them back for the AI, which made the sliders in VS Code feel like they were stuck in mud.
 
 **To fix the real-time performance, I:**
-1. **Ditced Disk I/O:** Everything now stays in RAM. NumPy arrays are converted directly into PyTorch tensors. No more junk files filling up folders.
+1. **Ditced Disk I/O:** Everything now stays in RAM. NumPy arrays are converted directly into PyTorch tensors.
 2. **Hardware Acceleration:** Added a check to automatically use **NVIDIA CUDA** or **Apple MPS** (Metal) depending on the machine.
-3. **UI Throttling:** Used `clear_output(wait=True)` so the dashboard doesn't flicker or "jump" when you move the sliders.
-
-
 
 ## How to Run
 1. Make sure you have `torch`, `numpy`, `scipy`, and `ipywidgets` installed.
@@ -27,6 +21,4 @@ The biggest pain in the ass during development was the UI lag. Originally, the c
 3. Use the **Orbit Step** slider to move the satellite along its path and the **FOV** slider to change the lens zoom.
 4. The AI will update the centroid detections and attitude error instantly.
 
-## Future Ideas
-* Expand the star catalog to handle more than 200 stars.
-* Implement a Lost-In-Space (LIS) mode for when the initial attitude is completely unknown.
+
