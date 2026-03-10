@@ -3,8 +3,8 @@ I built this project to bridge the gap between classical orbital mechanics and D
 ## What it actually does
 * **Orbital Sim:** Propagates a 2-body orbit (TBP) using `solve_ivp` and handles the LVLH frame transformations so the "camera" actually follows the orbit.
 * **Synthetic Imaging:** Instead of just drawing simple dots, it projects star catalog vectors onto a 2D sensor plane. I added Gaussian noise and PSF blurring to make the data look like it's coming from a real CMOS sensor.
-* **The AI Bit:** I used a custom U-Net architecture (**USpaceNet**) to extract star centroids from the noisy images. It’s way more reliable than basic thresholding when the stars are faint or the noise is high.
-* **Triangle Handshake:** It picks 3 detected stars, calculates their relative geometry, and matches them against a local catalog to identify which stars they actually are.
+* **Centroid Detection:** I used a custom U-Net architecture (**USpaceNet**) to extract star centroids from the noisy images. It’s way more reliable than basic thresholding when the stars are faint or the noise is high.
+* **Triangle Linking** It picks 3 detected stars, calculates their relative geometry, and matches them against a local catalog to identify which stars they actually are.
 * **Attitude Determination:** Once identified, it solves the **Wahba problem** to calculate the final rotation matrix and outputs the pointing accuracy in degrees.
 
 ## How to Run
