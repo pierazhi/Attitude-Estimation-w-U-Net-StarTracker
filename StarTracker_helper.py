@@ -220,7 +220,7 @@ def project_combined(star_direction_unit, A0, fov_deg, image_size, sizes, YY, cu
         rows=1, cols=2,
         column_widths=[0.5, 0.5],
         specs=[[{'type': 'scene'}, {'type': 'xy'}]],
-        subplot_titles=(f"3D ECI Space | True s in View: {number_of_stars}", "2D Sensor View")
+        subplot_titles=(f"3D ECI Space | True Stars in View: {number_of_stars}", "2D Sensor View")
     )
     # Project to 2D
     stars_B = A0 @ star_direction_unit[mask_bool, :].T
@@ -550,8 +550,6 @@ class USpaceNet(nn.Module):
 
         self.final = nn.Conv2d(16, 1, 1)
 
-
-
     def forward(self, x):
         # --- Encoder ---
         skip1 = F.relu(self.enc1(x))      # 256x256
@@ -575,3 +573,68 @@ class USpaceNet(nn.Module):
 
         # Final pixel-wise probability map
         return torch.sigmoid(self.final(d2))
+
+
+def plot_attitude(A_true, A_est):
+    """
+    Visualizes the True and Estimated Body Axes in two 3D subplots.
+    """
+    # Initialize subplots: 1 row, 2 columns
+    fig = make_subplots(
+        rows=1, cols=2,
+        specs=[[{'type': 'scene'}, {'type': 'scene'}]],
+        subplot_titles=("True Attitude", "Estimated Attitude")
+    )
+
+    colors = ['red', 'green', 'blue'] # X, Y, Z
+    true_names = ['X_True', 'Y_True', 'Z_True']
+    est_names = ['X_Est', 'Y_Est', 'Z_Est']
+
+    for i in range(3):
+        # --- SUBPLOT 1: TRUE ATTITUDE ---
+        # Line
+        fig.add_trace(go.Scatter3d(
+            x=[0, A_true[i, 0]], y=[0, A_true[i, 1]], z=[0, A_true[i, 2]],
+            mode='lines', line=dict(color=colors[i], width=6),
+            name=true_names[i], legendgroup='true'
+        ), row=1, col=1)
+        # Cone
+        fig.add_trace(go.Cone(
+            x=[A_true[i, 0]], y=[A_true[i, 1]], z=[A_true[i, 2]],
+            u=[A_true[i, 0]], v=[A_true[i, 1]], w=[A_true[i, 2]],
+            sizemode="absolute", sizeref=0.1, showscale=False,
+            colorscale=[[0, colors[i]], [1, colors[i]]], anchor="tail"
+        ), row=1, col=1)
+
+        # --- SUBPLOT 2: ESTIMATED ATTITUDE ---
+        # Line
+        fig.add_trace(go.Scatter3d(
+            x=[0, A_est[i, 0]], y=[0, A_est[i, 1]], z=[0, A_est[i, 2]],
+            mode='lines', line=dict(color=colors[i], width=6, dash='dash'),
+            name=est_names[i], legendgroup='est'
+        ), row=1, col=2)
+        # Cone
+        fig.add_trace(go.Cone(
+            x=[A_est[i, 0]], y=[A_est[i, 1]], z=[A_est[i, 2]],
+            u=[A_est[i, 0]], v=[A_est[i, 1]], w=[A_est[i, 2]],
+            sizemode="absolute", sizeref=0.1, showscale=False,
+            colorscale=[[0, colors[i]], [1, colors[i]]], anchor="tail"
+        ), row=1, col=2)
+
+    # Common axis settings
+    scene_settings = dict(
+        xaxis=dict(range=[-1.2, 1.2], title="X"),
+        yaxis=dict(range=[-1.2, 1.2], title="Y"),
+        zaxis=dict(range=[-1.2, 1.2], title="Z"),
+        aspectmode='cube'
+    )
+
+    fig.update_layout(
+        title_text="Attitude Determination: True vs Estimated",
+        height=600,
+        scene=scene_settings,   # Applies to first subplot
+        scene2=scene_settings,  # Applies to second subplot
+        showlegend=True
+    )
+
+    fig.show()
