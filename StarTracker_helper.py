@@ -434,7 +434,6 @@ def create_catalogo(num_stars, scale, smallest, biggest):
     return K, pairs_sorted, distances_sorted, slope, q, N_pairs, star_direction_unit, sizes
 
 def lvlh_frame(r0, v0):
-    """Updated to Zenith-pointing frame"""
     # Z is Zenith (pointing away from Earth)
     Z_b = r0 / np.linalg.norm(r0)              
     # Y is the Orbit Normal
@@ -575,7 +574,7 @@ class USpaceNet(nn.Module):
         return torch.sigmoid(self.final(d2))
 
 
-def plot_attitude(A_true, A_est):
+def plot_attitude(A_true, A_est, H, L, W, scale):
     """
     Visualizes the True and Estimated Body Axes in two 3D subplots.
     """
@@ -583,7 +582,7 @@ def plot_attitude(A_true, A_est):
     fig = make_subplots(
         rows=1, cols=2,
         specs=[[{'type': 'scene'}, {'type': 'scene'}]],
-        subplot_titles=("True Attitude", "Estimated Attitude")
+        subplot_titles=("True Attitude @ Inertial Frame", "Estimated Attitude @ Inertial Frame")
     )
 
     colors = ['red', 'green', 'blue'] # X, Y, Z
@@ -594,7 +593,7 @@ def plot_attitude(A_true, A_est):
         # --- SUBPLOT 1: TRUE ATTITUDE ---
         # Line
         fig.add_trace(go.Scatter3d(
-            x=[0, A_true[i, 0]], y=[0, A_true[i, 1]], z=[0, A_true[i, 2]],
+            x=[0, A_true[i, 0]], y=[0, A_true[i, 1]], z=[0, A_true[i, 2]], # As the rows of the inertial frame to body frame matrix are the unit vectors of the body axes (first row = x_b, second row = y_b, third row = z_b) in inertial space
             mode='lines', line=dict(color=colors[i], width=6),
             name=true_names[i], legendgroup='true'
         ), row=1, col=1)
@@ -606,8 +605,48 @@ def plot_attitude(A_true, A_est):
             colorscale=[[0, colors[i]], [1, colors[i]]], anchor="tail"
         ), row=1, col=1)
 
-        # --- SUBPLOT 2: ESTIMATED ATTITUDE ---
-        # Line
+    vertices_B, ii, jj, kk = geom_cuboid(H, L, W, scale)
+    vertices_I = (A_true.T @ vertices_B.T).T # We need to plot the satellite body in inertial frame, so we need the body to inertial (A.T)
+
+    fig.add_trace(go.Mesh3d( 
+        x=vertices_I[:, 0], y=vertices_I[:, 1], z=vertices_I[:, 2],
+        i=ii, j=jj, k=kk,
+        color='lightgray', opacity=0.5, flatshading=True,
+        showlegend=False
+        ), row = 1, col = 1)
+    
+    b_len = 0.3
+    boresight_B = np.array([0, 0, 1])
+    boresight_I = A_true.T @ boresight_B
+
+    fig.add_trace(go.Scatter3d(
+        x=[0, boresight_I[0] * b_len], 
+        y=[0, boresight_I[1] * b_len], 
+        z=[0, boresight_I[2] * b_len],
+        mode='lines', 
+        line=dict(color='purple', width=5), 
+        name='Boresight'
+        ), row=1, col=1)
+
+    fig.add_trace(go.Cone(
+        x=[boresight_I[0] * b_len], 
+        y=[boresight_I[1] * b_len], 
+        z=[boresight_I[2] * b_len],
+        u=[boresight_I[0]], 
+        v=[boresight_I[1]], 
+        w=[boresight_I[2]],
+        sizemode="absolute", 
+        sizeref=0.1, 
+        showscale=False,
+        colorscale=[[0, 'purple'], [1, 'purple']], 
+        anchor="tail",
+        showlegend=False, 
+    ), row=1, col=1)
+
+        
+    # --- SUBPLOT 2: ESTIMATED ATTITUDE ---
+
+    for i in range(3):
         fig.add_trace(go.Scatter3d(
             x=[0, A_est[i, 0]], y=[0, A_est[i, 1]], z=[0, A_est[i, 2]],
             mode='lines', line=dict(color=colors[i], width=6, dash='dash'),
@@ -620,6 +659,46 @@ def plot_attitude(A_true, A_est):
             sizemode="absolute", sizeref=0.1, showscale=False,
             colorscale=[[0, colors[i]], [1, colors[i]]], anchor="tail"
         ), row=1, col=2)
+
+        vertices_B, ii, jj, kk = geom_cuboid(H, L, W, scale)
+        vertices_I = (A_est.T @ vertices_B.T).T
+
+    # Satellite Mesh
+
+    fig.add_trace(go.Mesh3d(
+        x=vertices_I[:, 0], y=vertices_I[:, 1], z=vertices_I[:, 2],
+        i=ii, j=jj, k=kk,
+        color='lightgray', opacity=0.5, flatshading=True,
+        showlegend=False
+        ), row = 1, col = 2)
+
+    # Boresight
+
+    boresight_I = A_est.T @ boresight_B
+
+    fig.add_trace(go.Scatter3d(
+        x=[0, boresight_I[0] * b_len], 
+        y=[0, boresight_I[1] * b_len], 
+        z=[0, boresight_I[2] * b_len],
+        mode='lines', 
+        line=dict(color='purple', width=5), 
+        name='Boresight'
+        ), row=1, col=2)
+
+    fig.add_trace(go.Cone(
+        x=[boresight_I[0] * b_len], 
+        y=[boresight_I[1] * b_len], 
+        z=[boresight_I[2] * b_len],
+        u=[boresight_I[0]], 
+        v=[boresight_I[1]], 
+        w=[boresight_I[2]],
+        sizemode="absolute", 
+        sizeref=0.1, 
+        showscale=False,
+        colorscale=[[0, 'purple'], [1, 'purple']], 
+        anchor="tail",
+        showlegend=False, 
+    ), row=1, col=2)
 
     # Common axis settings
     scene_settings = dict(
@@ -638,3 +717,22 @@ def plot_attitude(A_true, A_est):
     )
 
     fig.show()
+
+def geom_cuboid(L, W, H, scale):
+    x = scale * L
+    y = scale * W
+    z = scale * H
+
+    vertices_B = np.array([
+        [-x, -y, -z], [x, -y, -z], [x, y, -z], [-x, y, -z],
+        [-x, -y, z], [x, -y, z], [x, y, z], [-x, y, z]]
+    )
+
+    ii = [0,1,2,3, 0,4,5,6,7,4, 0,1,5,4, 1,2,6,5, 2,3,7,6, 3,0,4,7]
+    jj = [1,2,3,0, 4,5,6,7,4,0, 1,5,4,0, 2,6,5,1, 3,7,6,2, 0,4,7,3]
+    kk = [2,3,0,1, 5,6,7,4,0,4, 5,1,0,5, 6,2,1,6, 7,3,2,7, 4,3,0,7]
+
+    return vertices_B, ii, jj, kk
+
+
+
