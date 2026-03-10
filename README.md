@@ -13,6 +13,9 @@ I built this project to bridge the gap between classical orbital mechanics and D
 4. Use the **Orbit Step** slider to move the satellite along its path and the **FOV** slider to change the lens zoom.
 5. The AI will update the centroid detections and attitude error instantly.
 
+<img width="2130" height="700" alt="newplot" src="https://github.com/user-attachments/assets/8789b210-1ce3-4c33-8029-fa660c261dce" />
+<img width="1200" height="500" alt="Figure 2" src="https://github.com/user-attachments/assets/3a11b71d-c0ed-4df0-a2dc-115ea7c7c414" />
+
 ## Future Ideas
 
 1. Use an already built CNN
