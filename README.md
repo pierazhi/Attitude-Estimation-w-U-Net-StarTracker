@@ -13,8 +13,11 @@ It handles everything from propagating a satellite's orbit to using a **U-Net** 
 4. Use the **Orbit Step** slider to move the satellite along its path and the **FOV** slider to change the lens zoom.
 5. The AI will update the centroid detections and attitude error instantly.
 
-<img width="2130" height="700" alt="newplot" src="https://github.com/user-attachments/assets/8789b210-1ce3-4c33-8029-fa660c261dce" />
-<img width="1200" height="500" alt="Figure 2" src="https://github.com/user-attachments/assets/3a11b71d-c0ed-4df0-a2dc-115ea7c7c414" />
+<img width="2130" height="600" alt="4" src="https://github.com/user-attachments/assets/078169ac-6d4b-42ff-a038-ba55c67483cb" />
+<img width="1200" height="500" alt="3" src="https://github.com/user-attachments/assets/41b3d36d-1685-4f40-9d08-f1634736a6f4" />
+<img width="800" height="800" alt="2" src="https://github.com/user-attachments/assets/f73b1dd2-fe2f-4bde-91fc-b3e49ef53d3d" />
+<img width="2130" height="700" alt="1" src="https://github.com/user-attachments/assets/7a95275f-320d-44ca-b089-4d7b1e38d473" />
+
 
 ## Future Ideas
 
