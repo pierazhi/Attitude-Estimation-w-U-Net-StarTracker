@@ -13,11 +13,10 @@ It handles everything from propagating a satellite's orbit to using a **U-Net** 
 4. Use the **Orbit Step** slider to move the satellite along its path and the **FOV** slider to change the lens zoom.
 5. The AI will update the centroid detections and attitude error instantly.
 
-<img width="2130" height="700" alt="1" src="https://github.com/user-attachments/assets/7a95275f-320d-44ca-b089-4d7b1e38d473" />
-<img width="800" height="800" alt="2" src="https://github.com/user-attachments/assets/f73b1dd2-fe2f-4bde-91fc-b3e49ef53d3d" />
-<img width="1200" height="500" alt="3" src="https://github.com/user-attachments/assets/41b3d36d-1685-4f40-9d08-f1634736a6f4" />
-<img width="2130" height="600" alt="4" src="https://github.com/user-attachments/assets/078169ac-6d4b-42ff-a038-ba55c67483cb" />
-
+<img width="2130" height="700" alt="1" src="https://github.com/user-attachments/assets/1eee0a59-beed-45ee-af6d-f33f938cde5d" />
+<img width="800" height="800" alt="2" src="https://github.com/user-attachments/assets/6d4e1fe8-ea4e-4c06-9edd-f5967c60857a" />
+<img width="1200" height="500" alt="3" src="https://github.com/user-attachments/assets/1728985b-f68b-41eb-b98e-0e6963b4b2c5" />
+<img width="2130" height="600" alt="4" src="https://github.com/user-attachments/assets/06adb430-d7c3-4186-be1f-83d7f27e45c2" />
 
 ## Future Ideas
 
