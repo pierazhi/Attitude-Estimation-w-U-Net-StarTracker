@@ -20,6 +20,8 @@ from torchvision import datasets, transforms
 from PIL import Image
 import os
 from scipy import ndimage
+import cv2
+
 
 def tbp(t, y, mu, case):
     x = y[0:3]
@@ -196,206 +198,7 @@ def add_earth_surface(fig, Re, opacity=0.18, n=50):
         name='Earth'
     ))
 
-def project_combined(star_direction_unit, A0, fov_deg, image_size, sizes, YY, current_idx, where):
-    # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # -
-    # Creates a camera model which points towards the same line of the Nadir but opposite direction (+ Z)
-    # Masks all the stars outside the FOV of the camera, highlights only the one inside it
-    # Projects the 3D stars onto 2D camera plane
-    # Plots the 3D stars and highlights the ones inside the FOV of the camera, plots the 2D camera view of the same space
-    # Outputs the stars inside the FOV, with their respective position in the camera frame
-    # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # -
-
-    boresight_B = np.array([0, 0, 1])
-    boresight_I = A0.T @ boresight_B
-    fov_rad = np.deg2rad(fov_deg)
-    f = 1 / (np.tan(fov_rad / 2))
-    
-    visibility = star_direction_unit @ boresight_I
-    mask = visibility > np.cos(fov_rad / 2)
-    mask_bool = mask.astype(bool)
-
-    number_of_stars = star_direction_unit[mask_bool, 0].shape[0]
-    
-    fig = make_subplots(
-        rows=1, cols=2,
-        column_widths=[0.5, 0.5],
-        specs=[[{'type': 'scene'}, {'type': 'xy'}]],
-        subplot_titles=(f"3D ECI Space | True Stars in View: {number_of_stars}", "2D Sensor View")
-    )
-    # Project to 2D
-    stars_B = A0 @ star_direction_unit[mask_bool, :].T
-    x_coords = f * stars_B[0] / stars_B[2]
-    y_coords = f * stars_B[1] / stars_B[2]      
-    px = ((- x_coords + 1) / 2) * image_size
-    py = ((- y_coords + 1) / 2) * image_size
-
-    # --- 3D TRACES (Column 1) ---
-
-    # Trajectory
-
-    global_scale = np.mean(np.linalg.norm(YY, axis=1)) / 0.6
-    scaled_YY = YY / global_scale
-
-    fig.add_trace(go.Scatter3d(
-        x=scaled_YY[:, 0],
-        y=scaled_YY[:, 1],
-        z=scaled_YY[:, 2],
-        mode='lines',
-        name="Trajectory",
-        line=dict(color='yellow', width=3) # Corretto qui
-    ))
-
-    # Earth
-
-    R_Earth = 6378.15e3 / global_scale
-    add_earth_surface(fig, R_Earth, opacity=0.5, n=50)
-
-    r_current = scaled_YY[current_idx, :] 
-
-    # 2. Define the boresight length (how far the red line extends in the 3D plot)
-    # Since stars are at radius 1.0, 0.4 is a good length to show direction
-    b_len = 0.4 
-
-    # --- Boresight Line starting from Satellite position ---
-    fig.add_trace(go.Scatter3d(
-        x=[r_current[0], r_current[0] + boresight_I[0] * b_len], 
-        y=[r_current[1], r_current[1] + boresight_I[1] * b_len], 
-        z=[r_current[2], r_current[2] + boresight_I[2] * b_len],
-        mode='lines', 
-        line=dict(color='purple', width=5), 
-        name='Boresight'
-    ), row=1, col=1)
-
-    # --- Cone (Arrowhead) at the tip of the boresight line ---
-    fig.add_trace(go.Cone(
-        x=[r_current[0] + boresight_I[0] * b_len], 
-        y=[r_current[1] + boresight_I[1] * b_len], 
-        z=[r_current[2] + boresight_I[2] * b_len],
-        u=[boresight_I[0]], 
-        v=[boresight_I[1]], 
-        w=[boresight_I[2]],
-        sizemode="absolute", 
-        sizeref=0.1, 
-        showscale=False,
-        colorscale=[[0, 'purple'], [1, 'red']], 
-        anchor="tail",
-        showlegend=False, 
-    ), row=1, col=1)
-
-    # Add Body Axes
-
-    body_fram_len = 0.2
-    colors = ['red', 'green', 'blue']
-    body_axes = ['X_B', 'Y_B', 'Z_B']
-    for i in range(3):
-        fig.add_trace(go.Scatter3d(
-        x=[r_current[0], r_current[0] + A0[i, 0] * body_fram_len], 
-        y=[r_current[1], r_current[1] + A0[i, 1] * body_fram_len], 
-        z=[r_current[2], r_current[2] + A0[i, 2] * body_fram_len],
-        mode='lines', 
-        line=dict(color=colors[i], width=5), 
-        name=body_axes[i],
-        ), row=1, col=1)
-
-        # --- Cone (Arrowhead) at the tip of the boresight line ---
-        fig.add_trace(go.Cone(
-            x=[r_current[0] + A0[i, 0] * body_fram_len], 
-            y=[r_current[1] + A0[i, 1] * body_fram_len], 
-            z=[r_current[2] + A0[i, 2] * body_fram_len],
-            u=[A0[i, 0]], 
-            v=[A0[i, 1]], 
-            w=[A0[i, 2]],
-            sizemode="absolute", 
-            sizeref=0.1, 
-            showscale=False,
-            colorscale=[[0, colors[i]], [1, colors[i]]], 
-            anchor="tail",
-            showlegend=False, 
-        ), row=1, col=1)
-
-    # Optional: Add a marker for the Satellite itself so it's visible at the start of the line
-    fig.add_trace(go.Scatter3d(
-        x=[r_current[0]], y=[r_current[1]], z=[r_current[2]],
-        mode='markers',
-        marker=dict(size=4, color='yellow'),
-        name='Satellite'
-    ), row=1, col=1)
-
-    # Stars Outside FOV
-
-    fig.add_trace(go.Scatter3d(
-        x=star_direction_unit[~mask_bool, 0], 
-        y=star_direction_unit[~mask_bool, 1], 
-        z=star_direction_unit[~mask_bool, 2],
-        mode='markers', marker=dict(color='white', size=sizes[~mask_bool], opacity=0.3),
-        name='Fuori FOV'
-    ), row=1, col=1)
-
-    # Stars Inside FOV
-    fig.add_trace(go.Scatter3d(
-        x=star_direction_unit[mask_bool, 0], 
-        y=star_direction_unit[mask_bool, 1], 
-        z=star_direction_unit[mask_bool, 2],
-        mode='markers', marker=dict(color='red', size=sizes[mask_bool]),
-        name='Nel FOV (3D)'
-    ), row=1, col=1)
-
-    # --- 2D TRACES (Column 2) ---
-    # First, add the black background "image"
-    img = np.zeros((image_size, image_size))
-    # We use Heatmap instead of imshow here because imshow creates its own figure
-    fig.add_trace(go.Heatmap(
-        z=img, 
-        colorscale=[[0, 'black'], [1, 'black']], # Forza tutto a nero indipendentemente dai dati
-        zmin=0, 
-        zmax=1, 
-        showscale=False, 
-        hoverinfo='skip'
-    ), row=1, col=2)
-
-    # Add the 2D Star Markers
-    fig.add_trace(go.Scatter(
-        x=px, y=py, mode='markers',
-        marker=dict(color='yellow', size=sizes[mask_bool], symbol='circle'),
-        name='Nel FOV (2D)'
-    ), row=1, col=2)
-
-    fig.add_trace(go.Scatter(
-        x=[np.round(image_size / 2)], y=[np.round(image_size / 2)], mode='markers',
-        marker=dict(color='red', size=3, symbol='cross'),
-        name='Boresight Center'
-    ), row=1, col=2)
-    
-    # --- LAYOUT CONFIGURATION ---
-    fig.update_layout(
-        template="plotly_dark",
-        height=700,
-        showlegend=True,
-        paper_bgcolor="black",
-        plot_bgcolor="black"
-    )
-
-    # Fix 2D Axis (Col 2)
-    fig.update_xaxes(range=[0, image_size], visible=False, row=1, col=2)
-    fig.update_yaxes(range=[image_size, 0], visible=False, row=1, col=2) # Inverted Y
-
-    # Fix 3D Scene (Col 1)
-    fig.update_scenes(
-        xaxis=dict(backgroundcolor="black"),
-        yaxis=dict(backgroundcolor="black"),
-        zaxis=dict(backgroundcolor="black"),
-        row=1, col=1
-    )
-    if where == 'browser':
-        pio.renderers.default = 'browser'
-    elif where == 'vscode':
-        pio.renderers.default = 'vscode'
-    fig.show()
-
-    # return fig.data
-    return mask_bool, px, py
-
-def create_catalogo(num_stars, scale, smallest, biggest):
+def create_catalogo(num_stars, small_small, big_small, small_big, big_big, percent):
     # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # -
     # Creates a catalogue of N stars, with random size between the smallest value and the biggest one
     # Outputs the K divisions, the sorted pairs and distances and the star unit vectors as well as their sizes
@@ -403,9 +206,15 @@ def create_catalogo(num_stars, scale, smallest, biggest):
 
     star_direction = np.random.normal(0, 1, (num_stars, 3))
     star_direction_unit = star_direction / np.linalg.norm(star_direction, axis = 1, keepdims=True)
-    sizes = np.random.exponential(scale, size=num_stars) + smallest
-    sizes = np.clip(sizes, smallest, biggest)
-    
+
+    percent = 0.95
+    n_low = int(num_stars * percent)
+    n_high = num_stars - n_low
+    low_vals = np.random.uniform(small_small, big_small, size=n_low)
+    high_vals = np.random.uniform(small_big, big_big, size=n_high)
+    sizes = np.concatenate([low_vals, high_vals])
+    np.random.shuffle(sizes)
+
     distances = []
     pairs = []
 
@@ -444,23 +253,25 @@ def lvlh_frame(r0, v0):
     X_b = X_b / np.linalg.norm(X_b)             
     return np.vstack([X_b, Y_b, Z_b])
 
+
+
 def create_real_image(sizes, px, py, noise_std, image_size):
-    # Genera l'immagine direttamente come array numpy senza salvarla
     canvas = np.zeros((image_size, image_size))
-    x_grid = np.arange(0, image_size)
-    y_grid = np.arange(0, image_size)
-    xx, yy = np.meshgrid(x_grid, y_grid)
-
-    for k in range(px.shape[0]):
-        # Calcolo della PSF (Point Spread Function) stellare
-        exponent = -((xx - px[k])**2 + (yy - py[k])**2) / (2 * sizes[k]**2)
-        canvas += np.exp(exponent) 
-
-    # Aggiunta rumore gaussiano
+    xx, yy = np.meshgrid(np.arange(image_size), np.arange(image_size))
     noise = np.random.normal(0, noise_std, (image_size, image_size))
-    canvas = np.clip(canvas + noise, 0, 1)
+
+    sigma_fissa = 1.0 # La lente è la stessa per tutte le stelle
+    for k in range(len(px)):
+        # L'intensità della stella è data dal catalogo
+        # Una stella con size=4 sarà 40 volte più luminosa di una con 0.1
+        ampiezza = sizes[k] 
+        exponent = -((xx - px[k])**2 + (yy - py[k])**2) / (2 * sigma_fissa**2)
+        canvas += ampiezza * np.exp(exponent)
     
-    return canvas
+    # IMPORTANTE: Se sizes arriva a 4, non clippare a 1!
+    # Altrimenti tutte le stelle sopra 1 sembreranno uguali.
+    canvas = np.clip(canvas + noise, 0, sizes.max()) 
+    return canvas / sizes.max() # Normalizza a 1 per la visualizzazione
 
 def extract_all_stars(heatmap, threshold=0.2):
     # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # -
@@ -735,4 +546,265 @@ def geom_cuboid(L, W, H, scale):
     return vertices_B, ii, jj, kk
 
 
+def cv_star_detector(image, threshold_multiplier):
+    img_8bit = (image * 255).astype(np.uint8)
+
+    # Calculate the mean and standard deviation of the image noise
+    mean, std = cv2.meanStdDev(img_8bit)
+
+    thresh_val = mean[0][0] + (threshold_multiplier * std[0][0])
+
+    _, binary = cv2.threshold(img_8bit, thresh_val, 255, cv2.THRESH_BINARY)
+
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # binary is the black and white images, RETR_EXTERNAL tells opencv to only focus on the external countor, CHAIN_APPROX_SIMPLE saves only the four pixel at the border
+
+    # Contours is a list with all the points of the perimeter of the blob, as it uses CHAIN_APPROX_SIMPLE, only the turning points are present
+    # Prepariamo un'immagine a colori per disegnare i risultati
+    output_img = cv2.cvtColor(img_8bit, cv2.COLOR_GRAY2BGR) # takes as input the gray-scaled picture and adds three channels for RGB
+
+    temp_list = []
+
+    for i, cnt in enumerate(contours):
+        # --- AREA ---
+        area = cv2.contourArea(cnt)
+        if area < 2: # Filtra i pixel singoli (rumore residuo)
+            continue
+
+        # --- BOUNDING BOX ---
+        # x, y sono le coordinate in alto a sinistra, w e h larghezza e altezza
+        x, y, w, h = cv2.boundingRect(cnt)
+        
+        # --- CENTROIDE (Momenti di massa) ---
+        M = cv2.moments(cnt)
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+        else:
+            cX, cY = x + w//2, y + h//2 # Fallback al centro del box
+
+        # --- DISEGNO ---
+        # Disegna il rettangolo (Verde)
+        cv2.rectangle(output_img, (x, y), (x + w, y + h), (0, 255, 0), 1)
+        
+        # Disegna il centroide (Punto Rosso)
+        # cv2.circle(output_img, (cX, cY), 2, (0, 0, 255), -1)
+
+        temp_list.append([cX, cY])
+
+    star_position_2D = np.array(temp_list)
+    # --- VISUALIZZAZIONE PLOTLY (Fuori dal loop) ---
+    # Convertiamo BGR -> RGB per Plotly
+    output_rgb = cv2.cvtColor(output_img, cv2.COLOR_BGR2RGB)
+
+    # for i in range(star_position_2D.shape[0]):
+    #     print(f"Stella {i+1} | Centroide ({star_position_2D[i, 0]}, {star_position_2D[i, 1]})")
+
+    fig = go.Figure()
+    fig.add_trace(go.Image(z=output_rgb))
+    fig.add_trace(go.Scatter(
+        x=star_position_2D[:, 0], 
+        y=star_position_2D[:, 1],
+        mode='text',
+        text=[f"S{i+1}" for i in range(star_position_2D.shape[0])],
+        textposition="top center",
+        textfont=dict(color="white", size=12)
+    ))
+    fig.update_layout(
+        title=f"Detected Stars: {star_position_2D.shape[0]}", 
+        template="plotly_dark",  
+        width=800, 
+        height=800
+    )
+    fig.show()
+
+    return star_position_2D, output_img
+
+def project_combined(star_direction_unit, A0, fov_deg, sensor_noise, image_size, sizes, YY, current_idx, where):
+    # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # -
+    # Creates a camera model which points towards the same line of the Nadir but opposite direction (+ Z)
+    # Masks all the stars outside the FOV of the camera, highlights only the one inside it
+    # Projects the 3D stars onto 2D camera plane
+    # Plots the 3D stars and highlights the ones inside the FOV of the camera, plots the 2D camera view of the same space
+    # Outputs the stars inside the FOV, with their respective position in the camera frame
+    # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # - # -
+
+    boresight_B = np.array([0, 0, 1])
+    boresight_I = A0.T @ boresight_B
+    fov_rad = np.deg2rad(fov_deg)
+    f = 1 / (np.tan(fov_rad / 2))
+    
+    visibility = star_direction_unit @ boresight_I
+    mask = visibility > np.cos(fov_rad / 2)
+    mask_bool = mask.astype(bool)
+
+    number_of_stars = star_direction_unit[mask_bool, 0].shape[0]
+    
+    fig = make_subplots(
+        rows=1, cols=2,
+        column_widths=[0.5, 0.5],
+        specs=[[{'type': 'scene'}, {'type': 'xy'}]],
+        subplot_titles=(f"3D ECI Space | True Stars in View: {number_of_stars}", "2D Sensor View")
+    )
+    # Project to 2D
+    stars_B = A0 @ star_direction_unit[mask_bool, :].T
+    x_coords = f * stars_B[0] / stars_B[2]
+    y_coords = f * stars_B[1] / stars_B[2]      
+    px = ((- x_coords + 1) / 2) * image_size
+    py = ((- y_coords + 1) / 2) * image_size
+
+    # --- 3D TRACES (Column 1) ---
+
+    # Trajectory
+
+    global_scale = np.mean(np.linalg.norm(YY, axis=1)) / 0.6
+    scaled_YY = YY / global_scale
+
+    fig.add_trace(go.Scatter3d(
+        x=scaled_YY[:, 0],
+        y=scaled_YY[:, 1],
+        z=scaled_YY[:, 2],
+        mode='lines',
+        name="Trajectory",
+        line=dict(color='yellow', width=3) # Corretto qui
+    ))
+
+    # Earth
+
+    R_Earth = 6378.15e3 / global_scale
+    add_earth_surface(fig, R_Earth, opacity=0.5, n=50)
+
+    r_current = scaled_YY[current_idx, :] 
+
+    # 2. Define the boresight length (how far the red line extends in the 3D plot)
+    # Since stars are at radius 1.0, 0.4 is a good length to show direction
+    b_len = 0.4 
+
+    # --- Boresight Line starting from Satellite position ---
+    fig.add_trace(go.Scatter3d(
+        x=[r_current[0], r_current[0] + boresight_I[0] * b_len], 
+        y=[r_current[1], r_current[1] + boresight_I[1] * b_len], 
+        z=[r_current[2], r_current[2] + boresight_I[2] * b_len],
+        mode='lines', 
+        line=dict(color='purple', width=5), 
+        name='Boresight'
+    ), row=1, col=1)
+
+    # --- Cone (Arrowhead) at the tip of the boresight line ---
+    fig.add_trace(go.Cone(
+        x=[r_current[0] + boresight_I[0] * b_len], 
+        y=[r_current[1] + boresight_I[1] * b_len], 
+        z=[r_current[2] + boresight_I[2] * b_len],
+        u=[boresight_I[0]], 
+        v=[boresight_I[1]], 
+        w=[boresight_I[2]],
+        sizemode="absolute", 
+        sizeref=0.1, 
+        showscale=False,
+        colorscale=[[0, 'purple'], [1, 'red']], 
+        anchor="tail",
+        showlegend=False, 
+    ), row=1, col=1)
+
+    # Add Body Axes
+
+    body_fram_len = 0.2
+    colors = ['red', 'green', 'blue']
+    body_axes = ['X_B', 'Y_B', 'Z_B']
+    for i in range(3):
+        fig.add_trace(go.Scatter3d(
+        x=[r_current[0], r_current[0] + A0[i, 0] * body_fram_len], 
+        y=[r_current[1], r_current[1] + A0[i, 1] * body_fram_len], 
+        z=[r_current[2], r_current[2] + A0[i, 2] * body_fram_len],
+        mode='lines', 
+        line=dict(color=colors[i], width=5), 
+        name=body_axes[i],
+        ), row=1, col=1)
+
+        # --- Cone (Arrowhead) at the tip of the boresight line ---
+        fig.add_trace(go.Cone(
+            x=[r_current[0] + A0[i, 0] * body_fram_len], 
+            y=[r_current[1] + A0[i, 1] * body_fram_len], 
+            z=[r_current[2] + A0[i, 2] * body_fram_len],
+            u=[A0[i, 0]], 
+            v=[A0[i, 1]], 
+            w=[A0[i, 2]],
+            sizemode="absolute", 
+            sizeref=0.1, 
+            showscale=False,
+            colorscale=[[0, colors[i]], [1, colors[i]]], 
+            anchor="tail",
+            showlegend=False, 
+        ), row=1, col=1)
+
+    # Optional: Add a marker for the Satellite itself so it's visible at the start of the line
+    fig.add_trace(go.Scatter3d(
+        x=[r_current[0]], y=[r_current[1]], z=[r_current[2]],
+        mode='markers',
+        marker=dict(size=4, color='yellow'),
+        name='Satellite'
+    ), row=1, col=1)
+
+    # Stars Outside FOV
+    size_visual_scale = 1
+
+    fig.add_trace(go.Scatter3d(
+        x=star_direction_unit[~mask_bool, 0], 
+        y=star_direction_unit[~mask_bool, 1], 
+        z=star_direction_unit[~mask_bool, 2],
+        mode='markers', marker=dict(color='white', size=sizes[~mask_bool] * size_visual_scale, opacity=0.3),
+        name='Fuori FOV'
+    ), row=1, col=1)
+
+    # Stars Inside FOV
+    fig.add_trace(go.Scatter3d(
+        x=star_direction_unit[mask_bool, 0], 
+        y=star_direction_unit[mask_bool, 1], 
+        z=star_direction_unit[mask_bool, 2],
+        mode='markers', marker=dict(color='red', size=sizes[mask_bool] * size_visual_scale),
+        name='Nel FOV'
+    ), row=1, col=1)
+
+    # --- 2D TRACES (Column 2) ---
+    # First, add the black background "image"
+
+    img = create_real_image(sizes[mask_bool], px, py, sensor_noise, image_size)
+
+    # We use Heatmap instead of imshow here because imshow creates its own figure
+    fig.add_trace(go.Heatmap(
+        z=img, 
+        colorscale='Gray',    # Scala di grigi astronomica
+        zmin=0, 
+        zmax=1, 
+        showscale=False, 
+        hoverinfo='z'         # Vedi l'intensità del pixel al passaggio del mouse
+    ), row=1, col=2)
+
+    # --- LAYOUT CONFIGURATION ---
+    fig.update_layout(
+        template="plotly_dark",
+        height=700,
+        showlegend=True,
+        paper_bgcolor="black",
+        plot_bgcolor="black"
+    )
+
+    # Fix 2D Axis (Col 2)
+    fig.update_xaxes(range=[0, image_size], visible=False, row=1, col=2)
+    fig.update_yaxes(range=[image_size, 0], visible=False, row=1, col=2) # Inverted Y
+
+    # Fix 3D Scene (Col 1)
+    fig.update_scenes(
+        xaxis=dict(backgroundcolor="black"),
+        yaxis=dict(backgroundcolor="black"),
+        zaxis=dict(backgroundcolor="black"),
+        row=1, col=1
+    )
+    if where == 'browser':
+        pio.renderers.default = 'browser'
+    elif where == 'vscode':
+        pio.renderers.default = 'vscode'
+    fig.show()
+
+    # return fig.data
+    return mask_bool, px, py, img
 
